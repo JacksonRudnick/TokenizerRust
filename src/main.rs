@@ -9,6 +9,7 @@
 use std::env;
 use std::fs;
 use std::io;
+use std::io::Write;
 
 /// List of all keywords in the programming language.
 const KEYWORD: [&str; 21] = [
@@ -77,82 +78,47 @@ fn is_keyword(word: &str) -> bool {
 /// # Returns
 ///
 /// Returns a tuple containing the updated values for `in_multi_line_comment`, `in_string_literal`, and `string_literal`.
-fn analyze_line<'a>(line: String, in_multi_line_comment: &'a mut bool, in_string_literal: &'a mut bool, string_literal: &'a mut String) -> (&'a mut bool, &'a mut bool, &'a mut String) {
-    // Initialize a mutable String to store the current check
-    let mut check = String::new();
-
-    // Iterate over each character in the line
-    for (_i, c) in line.chars().enumerate() {
-        // Check if the character is a delimiter and not in a string literal
-        if is_delimiter(c) && !*in_string_literal {
-            // Check for single line comment
-            if c == '/' && line.chars().next().unwrap() == '/' {
-                // If a single line comment is found, break the loop
-                break;
-            } 
-            // Check for multi line comment start
-            else if c == '/' && line.chars().next().unwrap() == '*' && !*in_multi_line_comment {
-                // If a multi line comment start is found, toggle the in_multi_line_comment flag and return
-                *in_multi_line_comment = !*in_multi_line_comment;
-                return (in_multi_line_comment, in_string_literal, string_literal);
-            } 
-            // Check for multi line comment end
-            else if c == '*' && line.chars().next().unwrap() == '/' && *in_multi_line_comment { 
-                // If a multi line comment end is found, toggle the in_multi_line_comment flag
-                *in_multi_line_comment = false;
-            } 
-            // Check for string literal start
-            else if c == '"' {
-                // If a string literal start is found, toggle the in_string_literal flag
-                *in_string_literal = !*in_string_literal;
-                continue;
-            } 
-            // Check if the character is a symbol and not in a multi line comment
-            else if is_symbol(c) && !*in_multi_line_comment {
-                // Print the symbol
-                println!("{}", c);
-            } 
-            // Check if the check is a keyword
-            else if is_keyword(&check) {
-                // Print the keyword
-                println!("{} ", check);
-                check = String::new();
-            } 
-            // Check if the check can be parsed as a number
-            else if check.parse::<f64>().is_ok() {
-                // Print the number
-                println!("{} ", check);
-                check = String::new();
-            } 
-            // Check if the check starts with a number
-            else if match check.chars().nth(0) {
-                Some(c) => c.is_numeric(),
-                None => continue
-            } {
-                // Error if a number starts the identifier
-                panic!("Identifier cannot start with number!");
-            } 
-            // Otherwise, print the identifier
-            else {
-                println!("{}", check);
-                check = String::new();
-            }
+fn analyze_line(mut file: fs::File, line: String, (mut in_multi_line_comment, mut in_string_literal, mut string_literal): (bool, bool, String)) -> (bool, bool, String) {
+    // Initialize variables for the analyze_line function
+    let mut identifier = String::new();
+    let mut prev_char = '\0';
+    
+    for c in line.chars() {
+        // check for single line comment
+        if c == '/' && prev_char == '/' && !in_string_literal && !in_multi_line_comment {
+            return (in_multi_line_comment, in_string_literal, string_literal);
+        } // check for multi line comment 
+        else if c == '*' && prev_char == '/' && !in_string_literal && !in_multi_line_comment {
+            in_multi_line_comment = true;
+        } // check for end of multi line comment 
+        else if c == '/' && prev_char == '*' && !in_string_literal && in_multi_line_comment {
+            in_multi_line_comment = false;
+        } // check for start of string literal  
+        else if c == '"' && !in_multi_line_comment && !in_string_literal {
+            in_string_literal = true;
+        } // check for end of string literal
+        else if c == '"' && !in_multi_line_comment && in_string_literal {
+            in_string_literal = false;
+        } // check for string literal contents
+        else if in_string_literal {
+            string_literal.push(c);
+        } // check for symbol
+        else if is_symbol(c) && !in_string_literal && !in_multi_line_comment {
+            match c {
+                '<' => file.write(b"<symbol> &lt </symbol>").expect("Unable to write to file"),
+                '>' => file.write(b"<symbol> &gt </symbol>").expect("Unable to write to file"),
+                '&' => file.write(b"<symbol> &amp </symbol>").expect("Unable to write to file"),
+                '"' => file.write(b"<symbol> &quot </symbol ").expect("Unable to write to file"),
+                _ => file.write(b"<symbol> {c} </symbol>").expect("Unable to write to file"),
+            };
         } 
-        // If in a string literal, append the character to the string_literal
-        else if *in_string_literal {
-            if c == '"' {
-                *in_string_literal = !*in_string_literal;
-            } else {
-                string_literal.push(c);
-            }
-        } 
-        // Otherwise, append the character to the check
-        else {
-            check.push(c);
+        else if !is_delimiter(c) && !in_string_literal && !in_multi_line_comment {
+            identifier.push(c);
         }
+
+        prev_char = c;       
     }
 
-    // Return the updated values
     (in_multi_line_comment, in_string_literal, string_literal)
 }
 
@@ -196,12 +162,14 @@ fn main() {
     let contents = fs::read_to_string(path.trim())
         .expect("Something went wrong reading the file");
 
+    // Open file to write xml output to
+    let file = fs::File::open("output.xml").unwrap();
+
     // Initialize variables for the analyze_line function
-    let mut res: (&mut bool, &mut bool, &mut String) =
-        (&mut false, &mut false, &mut String::new());
+    let mut results = (false, false, String::new());
 
     // Analyze each line of the file
     for line in contents.lines() {
-        res = analyze_line(line.to_string(), res.0, res.1, res.2);
+        results = analyze_line(line.to_string(), results);
     }
 }
