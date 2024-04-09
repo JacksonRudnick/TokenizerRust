@@ -7,7 +7,6 @@
 
 /// Standard library imports
 use std::env;
-use std::fmt::format;
 use std::fs;
 use std::io;
 use std::io::Write;
@@ -84,12 +83,26 @@ fn analyze_line(file: &mut fs::File, line: String, (mut in_multi_line_comment, m
     let mut identifier = String::new();
     let mut prev_char = '\0';
     
-    for c in line.chars() {
+    for (i, c) in line.chars().into_iter().enumerate() {
+        if (is_delimiter(c) || c == '\n') && !in_string_literal && !in_multi_line_comment {
+            if !identifier.is_empty() {
+                if is_keyword(&identifier) {
+                    file.write(format!("<keyword> {} </keyword>\n", identifier).as_bytes()).expect("Unable to write to file");
+                } else if identifier.parse::<f64>().is_ok() {
+                    file.write(format!("<integerConstant> {} </integerConstant>\n", identifier).as_bytes()).expect("Unable to write to file");
+                }
+                else {
+                    file.write(format!("<identifier> {} </identifier>\n", identifier).as_bytes()).expect("Unable to write to file");
+                }
+                identifier = String::new();
+            }
+        }
+
         // check for single line comment
-        if c == '/' && prev_char == '/' && !in_string_literal && !in_multi_line_comment {
+        if c == '/' && line.chars().nth(i+1) == Some('/') && !in_string_literal && !in_multi_line_comment {
             return (in_multi_line_comment, in_string_literal, string_literal);
         } // check for multi line comment 
-        else if c == '*' && prev_char == '/' && !in_string_literal && !in_multi_line_comment {
+        else if c == '/' && line.chars().nth(i+1) == Some('*') && !in_string_literal && !in_multi_line_comment {
             in_multi_line_comment = true;
         } // check for end of multi line comment 
         else if c == '/' && prev_char == '*' && !in_string_literal && in_multi_line_comment {
@@ -99,7 +112,8 @@ fn analyze_line(file: &mut fs::File, line: String, (mut in_multi_line_comment, m
             in_string_literal = true;
         } // check for end of string literal
         else if c == '"' && !in_multi_line_comment && in_string_literal {
-            file.write(format!("<string> {} </string>\n", string_literal).as_bytes()).expect("Unable to write to file");
+            file.write(format!("<stringConstant> {} </stringConstant>\n", string_literal).as_bytes()).expect("Unable to write to file");
+            string_literal = String::new();
             in_string_literal = false;
         } // check for string literal contents
         else if in_string_literal {
@@ -107,10 +121,11 @@ fn analyze_line(file: &mut fs::File, line: String, (mut in_multi_line_comment, m
         } // check for symbol
         else if is_symbol(c) && !in_string_literal && !in_multi_line_comment {
             match c {
-                '<' => file.write(b"<symbol> &lt </symbol>\n").expect("Unable to write to file"),
-                '>' => file.write(b"<symbol> &gt </symbol>\n").expect("Unable to write to file"),
-                '&' => file.write(b"<symbol> &amp </symbol>\n").expect("Unable to write to file"),
-                '"' => file.write(b"<symbol> &quot </symbol\n").expect("Unable to write to file"),
+                '<' => file.write(b"<symbol> &lt; </symbol>\n").expect("Unable to write to file"),
+                '>' => file.write(b"<symbol> &gt; </symbol>\n").expect("Unable to write to file"),
+                '&' => file.write(b"<symbol> &amp; </symbol>\n").expect("Unable to write to file"),
+                '"' => file.write(b"<symbol> &quot; </symbol\n").expect("Unable to write to file"),
+                '/' => if prev_char != '/' { file.write(b"<symbol> / </symbol>\n").expect("Unable to write to file") } else { 1 },
                 _ => file.write(format!("<symbol> {} </symbol>\n", c).as_bytes()).expect("Unable to write to file"),
             };
         } 
@@ -161,8 +176,14 @@ fn main() {
     let contents = fs::read_to_string(path.trim())
         .expect("Something went wrong reading the file");
 
+    // Get output filename
+    let output_name = path.trim().split("/").collect::<Vec<&str>>()[path.trim().split("/").collect::<Vec<&str>>().len() - 1].split(".").collect::<Vec<&str>>()[0];
+
     // Open file to write xml output to
-    let mut file = fs::File::create("output.xml").unwrap();
+    let mut file = fs::File::create(format!("{}T.xml", output_name)).unwrap();
+
+    // Write xml header
+    file.write(b"<tokens>\n").expect("Unable to write to file");
 
     // Initialize variables for the analyze_line function
     let mut results = (false, false, String::new());
@@ -171,4 +192,10 @@ fn main() {
     for line in contents.lines() {
         results = analyze_line(&mut file, line.to_string(), results);
     }
+
+    // Write xml footer
+    file.write(b"</tokens>\n").expect("Unable to write to file");
+
+    // Close file
+    file.flush().unwrap();
 }
