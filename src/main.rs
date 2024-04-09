@@ -7,6 +7,7 @@
 
 /// Standard library imports
 use std::env;
+use std::fmt::format;
 use std::fs;
 use std::io;
 use std::io::Write;
@@ -98,6 +99,7 @@ fn analyze_line(file: &mut fs::File, line: String, (mut in_multi_line_comment, m
             in_string_literal = true;
         } // check for end of string literal
         else if c == '"' && !in_multi_line_comment && in_string_literal {
+            file.write(format!("<string> {} </string>\n", string_literal).as_bytes()).expect("Unable to write to file");
             in_string_literal = false;
         } // check for string literal contents
         else if in_string_literal {
@@ -105,11 +107,11 @@ fn analyze_line(file: &mut fs::File, line: String, (mut in_multi_line_comment, m
         } // check for symbol
         else if is_symbol(c) && !in_string_literal && !in_multi_line_comment {
             match c {
-                '<' => file.write(b"<symbol> &lt </symbol>").expect("Unable to write to file"),
-                '>' => file.write(b"<symbol> &gt </symbol>").expect("Unable to write to file"),
-                '&' => file.write(b"<symbol> &amp </symbol>").expect("Unable to write to file"),
-                '"' => file.write(b"<symbol> &quot </symbol ").expect("Unable to write to file"),
-                _ => file.write(b"<symbol> {c} </symbol>").expect("Unable to write to file"),
+                '<' => file.write(b"<symbol> &lt </symbol>\n").expect("Unable to write to file"),
+                '>' => file.write(b"<symbol> &gt </symbol>\n").expect("Unable to write to file"),
+                '&' => file.write(b"<symbol> &amp </symbol>\n").expect("Unable to write to file"),
+                '"' => file.write(b"<symbol> &quot </symbol\n").expect("Unable to write to file"),
+                _ => file.write(format!("<symbol> {} </symbol>\n", c).as_bytes()).expect("Unable to write to file"),
             };
         } 
         else if !is_delimiter(c) && !in_string_literal && !in_multi_line_comment {
@@ -155,15 +157,12 @@ fn main() {
         },
     }
 
-    // Print the file path
-    println!("{} ", path);
-
     // Read the contents of the file
     let contents = fs::read_to_string(path.trim())
         .expect("Something went wrong reading the file");
 
     // Open file to write xml output to
-    let mut file = fs::File::open("output.xml").unwrap();
+    let mut file = fs::File::create("output.xml").unwrap();
 
     // Initialize variables for the analyze_line function
     let mut results = (false, false, String::new());
