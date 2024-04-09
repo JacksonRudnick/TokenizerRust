@@ -78,7 +78,7 @@ fn is_keyword(word: &str) -> bool {
 /// # Returns
 ///
 /// Returns a tuple containing the updated values for `in_multi_line_comment`, `in_string_literal`, and `string_literal`.
-fn analyze_line(mut file: fs::File, line: String, (mut in_multi_line_comment, mut in_string_literal, mut string_literal): (bool, bool, String)) -> (bool, bool, String) {
+fn analyze_line(file: &mut fs::File, line: String, (mut in_multi_line_comment, mut in_string_literal, mut string_literal): (bool, bool, String)) -> (bool, bool, String) {
     // Initialize variables for the analyze_line function
     let mut identifier = String::new();
     let mut prev_char = '\0';
@@ -163,13 +163,13 @@ fn main() {
         .expect("Something went wrong reading the file");
 
     // Open file to write xml output to
-    let file = fs::File::open("output.xml").unwrap();
+    let mut file = fs::File::open("output.xml").unwrap();
 
     // Initialize variables for the analyze_line function
     let mut results = (false, false, String::new());
 
     // Analyze each line of the file
     for line in contents.lines() {
-        results = analyze_line(line.to_string(), results);
+        results = analyze_line(&mut file, line.to_string(), results);
     }
 }
