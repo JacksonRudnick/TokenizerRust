@@ -139,11 +139,6 @@ fn analyze_line(file: &mut fs::File, line: String, (mut in_multi_line_comment, m
     (in_multi_line_comment, in_string_literal, string_literal)
 }
 
-fn analyze_line_by_matching(line: String) {
-    line.chars().for_each(|c| {
-
-}
-
 /// Main function to read a file and analyze its contents.
 ///
 /// This function takes command line arguments to determine the file path.
@@ -169,7 +164,7 @@ fn main() {
         },
         2 => {
             // If one argument, use it as the file path
-            path = args[0].clone();
+            path = args[1].clone();
         },
         _ => {
             // If more than one argument, panic with error message
