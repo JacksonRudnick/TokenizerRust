@@ -87,7 +87,10 @@ fn analyze_line(file: &mut fs::File, line: String, (mut in_multi_line_comment, m
         if (is_delimiter(c) || c == '\n') && !in_string_literal && !in_multi_line_comment {
             if !identifier.is_empty() {
                 if is_keyword(&identifier) {
-                    file.write(format!("<keyword> {} </keyword>\n", identifier).as_bytes()).expect("Unable to write to file");
+                    file
+                    .write(format!("<keyword> {} </keyword>\n", identifier)
+                    .as_bytes())
+                    .expect("Unable to write to file");
                 } else if identifier.parse::<f64>().is_ok() {
                     file.write(format!("<integerConstant> {} </integerConstant>\n", identifier).as_bytes()).expect("Unable to write to file");
                 }
